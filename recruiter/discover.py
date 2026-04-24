@@ -11,6 +11,10 @@ SPECTRUM_HOME = "https://robertsspaceindustries.com/spectrum/community/SC"
 LOBBY_URL_TEMPLATE = "https://robertsspaceindustries.com/spectrum/community/SC/lobby/{id}"
 
 
+class NotLoggedInError(Exception):
+    pass
+
+
 def discover_lobbies(context: BrowserContext) -> list[dict]:
     page = context.new_page()
     captured: list[dict] = []
@@ -34,8 +38,14 @@ def discover_lobbies(context: BrowserContext) -> list[dict]:
             return []
 
         body = captured[0]
+        data = body.get("data") or {}
+        member = data.get("member") or {}
+        if not (member.get("id") or member.get("nickname")):
+            raise NotLoggedInError(
+                "Spectrum returned no authenticated session. Log in to RSI first."
+            )
         lobbies: list[dict] = []
-        for c in (body.get("data") or {}).get("communities", []):
+        for c in data.get("communities", []):
             for l in c.get("lobbies") or []:
                 lobbies.append({
                     "id": l["id"],

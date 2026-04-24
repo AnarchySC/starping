@@ -11,6 +11,11 @@ from playwright.sync_api import BrowserContext
 from . import db
 
 PRESENCES_PATH = "/api/spectrum/lobby/presences"
+IDENTIFY_PATH = "/api/spectrum/auth/identify"
+
+
+class NotLoggedInError(Exception):
+    """Raised when Spectrum's identify response shows no authenticated member."""
 
 # isGM=true already flags official CIG/moderator accounts. These badge names are
 # additional staff signals we treat as off-limits for recruiting.
@@ -37,12 +42,30 @@ def profile_url(member: dict) -> str:
     return f"https://robertsspaceindustries.com/citizens/{handle}"
 
 
+def _identify_has_session(body) -> bool:
+    """True if the identify response indicates an authenticated user."""
+    if not isinstance(body, dict):
+        return False
+    data = body.get("data") or {}
+    member = data.get("member") or {}
+    return bool(member.get("id") or member.get("nickname"))
+
+
 def scrape_lobby(context: BrowserContext, lobby_url: str, lobby_id: int | None) -> dict:
-    """Open the lobby, capture the largest presences JSON payload, upsert users."""
+    """Open the lobby, capture the largest presences JSON payload, upsert users.
+
+    Raises NotLoggedInError if the session is missing/expired."""
     page = context.new_page()
     captured: dict = {"data": [], "size": 0}
+    auth_state: dict = {"logged_in": None}  # None = unknown, True/False once seen
 
     def on_response(resp):
+        if IDENTIFY_PATH in resp.url and auth_state["logged_in"] is None:
+            try:
+                auth_state["logged_in"] = _identify_has_session(resp.json())
+            except Exception:
+                auth_state["logged_in"] = False
+            return
         if PRESENCES_PATH not in resp.url:
             return
         try:
@@ -69,6 +92,12 @@ def scrape_lobby(context: BrowserContext, lobby_url: str, lobby_id: int | None) 
             page.wait_for_timeout(500)
         if captured["size"] > 0:
             page.wait_for_timeout(2000)  # grace window for the full payload
+
+        if captured["size"] == 0 and auth_state["logged_in"] is False:
+            raise NotLoggedInError(
+                "Spectrum returned no authenticated session. Open the browser "
+                "from the dashboard and log in to RSI, then try again."
+            )
 
         data = captured["data"]
         by_group = {"STAFF": 0, "CIVILIAN": 0, "BACKER": 0}

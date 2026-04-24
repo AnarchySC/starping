@@ -1,8 +1,8 @@
 from contextlib import contextmanager
-from pathlib import Path
 from playwright.sync_api import sync_playwright, BrowserContext
 
-USER_DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "browser"
+from . import paths
+
 SPECTRUM_URL = "https://robertsspaceindustries.com/spectrum/community/SC"
 RSI_LOGIN_URL = "https://robertsspaceindustries.com/connect?jumpto=/spectrum/community/SC"
 
@@ -10,10 +10,10 @@ RSI_LOGIN_URL = "https://robertsspaceindustries.com/connect?jumpto=/spectrum/com
 @contextmanager
 def launch(headless: bool = False, slow_mo: int = 0):
     """Launch persistent Chromium context so session cookies survive between runs."""
-    USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    user_data_dir = paths.browser_profile_dir()
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
-            user_data_dir=str(USER_DATA_DIR),
+            user_data_dir=str(user_data_dir),
             headless=headless,
             slow_mo=slow_mo,
             viewport={"width": 1400, "height": 900},

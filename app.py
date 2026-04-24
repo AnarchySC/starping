@@ -1,10 +1,40 @@
+import logging
 import os
 import threading
+from logging.handlers import RotatingFileHandler
 from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
-from recruiter import db, browser, scraper, sender, discover
+from recruiter import db, browser, scraper, sender, discover, paths
+
+
+def _configure_logging() -> None:
+    log_file = paths.logs_dir() / "starping.log"
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)s [%(name)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=1_000_000, backupCount=5, encoding="utf-8"
+    )
+    file_handler.setFormatter(fmt)
+    file_handler.setLevel(logging.INFO)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(fmt)
+    stream_handler.setLevel(logging.INFO)
+
+    root = logging.getLogger()
+    # Clear pre-existing handlers (Flask may add its own)
+    root.handlers.clear()
+    root.addHandler(file_handler)
+    root.addHandler(stream_handler)
+    root.setLevel(logging.INFO)
+
+
+_configure_logging()
 
 app = Flask(__name__)
-app.secret_key = "local-only-not-secret"
+app.secret_key = os.environ.get("STARPING_SECRET") or "local-only-not-secret"
+app.logger.info("StarPing starting. data_dir=%s", paths.data_dir())
 
 _browser_lock = threading.Lock()
 
@@ -88,12 +118,15 @@ def delete_lobby(lobby_id):
 def discover_lobbies_route():
     try:
         lobbies = _run_with_browser(lambda ctx: discover.discover_lobbies(ctx))
+    except discover.NotLoggedInError as e:
+        flash(str(e) + " Click 'Open browser & log in' below first.", "error")
+        return redirect(url_for("dashboard"))
     except Exception as e:
         app.logger.exception("discovery failed")
         flash(f"Discovery failed: {e}", "error")
         return redirect(url_for("dashboard"))
     if not lobbies:
-        flash("No lobbies returned — not logged in, or Spectrum layout changed.", "error")
+        flash("No lobbies returned — Spectrum layout may have changed.", "error")
         return redirect(url_for("dashboard"))
     before = {l["url"] for l in db.list_lobbies()}
     for l in lobbies:
@@ -117,6 +150,8 @@ def scrape(lobby_id):
                 lambda ctx: scraper.scrape_lobby(ctx, lobby["url"], lobby["id"])
             )
             app.logger.info(f"Scrape complete: {result}")
+        except scraper.NotLoggedInError as e:
+            app.logger.warning("Scrape blocked: %s", e)
         except Exception as e:
             app.logger.exception(f"Scrape failed: {e}")
 

@@ -1,10 +1,10 @@
 import sqlite3
-from pathlib import Path
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-DB_PATH = DATA_DIR / "recruiter.sqlite3"
+from . import paths
+
+DB_PATH = paths.db_path()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS lobbies (
@@ -55,7 +55,8 @@ def now_iso() -> str:
 
 
 def init() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # paths.data_dir() already ensures the directory exists.
+    paths.data_dir()
     with connect() as conn:
         conn.executescript(SCHEMA)
 
