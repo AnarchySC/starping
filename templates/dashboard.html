@@ -12,6 +12,20 @@
             <b style="color: var(--warn)">Not signed in</b> — {{ session_info.status }}
         {% endif %}
     </p>
+    <p class="muted" style="margin: 0.2rem 0;">
+        <b>Do not close the Chromium window manually.</b> It will close itself after verifying your session.
+    </p>
+    {% if session_info.cookie_count %}
+        <details style="margin-top: 0.5rem;">
+            <summary class="muted">Session diagnostics</summary>
+            <p class="muted" style="margin: 0.4rem 0 0.1rem;">Cookies after sign-in: <b>{{ session_info.cookie_count }}</b></p>
+            {% if session_info.cookie_names %}<p class="muted" style="margin:0 0 0.4rem;"><code>{{ session_info.cookie_names }}</code></p>{% endif %}
+            {% if session_info.identify_raw %}
+                <p class="muted" style="margin: 0.4rem 0 0.1rem;">Last identify response (truncated):</p>
+                <pre style="max-height: 18rem; overflow: auto;">{{ session_info.identify_raw }}</pre>
+            {% endif %}
+        </details>
+    {% endif %}
     {% if session_info.last_error %}
         <p class="muted">Last error: <code>{{ session_info.last_error }}</code></p>
     {% endif %}

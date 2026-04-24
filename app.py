@@ -66,10 +66,14 @@ def dashboard():
         "sent": sum(1 for r in recruits if r["sent_at"]),
         "pending": sum(1 for r in recruits if not r["sent_at"]),
     }
+    last_err = db.get_setting("last_error") or ""
     session_info = {
         "nickname": db.get_setting("rsi_nickname"),
         "status": db.get_setting("login_status", "never signed in"),
-        "last_error": db.get_setting("last_error"),
+        "last_error": last_err.strip() or None,
+        "cookie_count": db.get_setting("cookie_count"),
+        "cookie_names": db.get_setting("cookie_names"),
+        "identify_raw": db.get_setting("last_identify_raw"),
     }
     used = {l["name"] for l in lobbies}
     name_suggestions = sorted(used) + [n for n in SEED_LOBBY_NAMES if n not in used]
@@ -86,69 +90,127 @@ def dashboard():
 IDENTIFY_PATH = "/api/spectrum/auth/identify"
 
 
+def _summarize_cookies(cookies):
+    return [f"{c['name']} (domain={c['domain']}, path={c.get('path', '?')})" for c in cookies]
+
+
+def _extract_member_nickname(parsed):
+    if not isinstance(parsed, dict):
+        return None
+    data = parsed.get("data")
+    if not isinstance(data, dict):
+        return None
+    member = data.get("member")
+    if not isinstance(member, dict):
+        return None
+    return member.get("nickname") or member.get("displayname")
+
+
 @app.route("/login", methods=["POST"])
 def login():
-    def _open(ctx):
-        identify_captures = []
+    # Clear stale errors so the dashboard tells the truth
+    db.set_setting("last_error", "")
 
-        page = ctx.new_page()
+    def _open(ctx):
+        # Captures any /api/spectrum/auth/identify response from any page in the ctx.
+        identify_captures = []  # list of (raw_text, parsed_json)
 
         def on_response(resp):
             if IDENTIFY_PATH not in resp.url:
                 return
             try:
-                identify_captures.append(resp.json())
+                raw = resp.text()
             except Exception:
-                identify_captures.append({"_error": "non-json identify response"})
+                raw = ""
+            parsed = None
+            try:
+                parsed = resp.json()
+            except Exception:
+                pass
+            identify_captures.append((raw, parsed))
 
-        page.on("response", on_response)
+        # User's login page. They'll sign in, possibly do 2FA email verification, etc.
+        login_page = ctx.new_page()
+        login_page.on("response", on_response)
+        login_page.goto(browser.RSI_LOGIN_URL, wait_until="domcontentloaded")
+        app.logger.info("Login: browser opened — waiting for authenticated identify response (up to 15 min)")
 
-        page.goto(browser.RSI_LOGIN_URL, wait_until="domcontentloaded")
-        app.logger.info("Login: browser opened, waiting for user to sign in")
-
-        # Wait for the user to complete RSI login (URL leaves /connect and /login).
-        try:
-            page.wait_for_url(
-                lambda url: "connect" not in url and "login" not in url.lower(),
-                timeout=600_000,
-            )
-            app.logger.info("Login: URL changed, explicitly navigating to Spectrum to init session")
-        except Exception as e:
-            app.logger.warning("Login: wait_for_url ended: %s", e)
-            db.set_setting("last_error", f"login wait: {type(e).__name__}: {e}")
-            return
-
-        # Explicitly visit Spectrum so an identify call fires with the new session.
-        try:
-            page.goto(browser.SPECTRUM_URL, wait_until="domcontentloaded", timeout=30000)
-        except Exception as e:
-            app.logger.warning("Login: spectrum navigation failed: %s", e)
-
-        # Give identify up to 15s to fire
         import time as _t
-        deadline = _t.time() + 15
-        while _t.time() < deadline and not identify_captures:
-            page.wait_for_timeout(500)
+        deadline = _t.time() + 900  # 15 minutes — plenty of time for 2FA email
+        last_probe = 0.0
+        probe_page = None
+        nickname = None
+        probe_interval = 8  # seconds between background identify probes
 
-        if not identify_captures:
-            db.set_setting("login_status", "no_identify_response")
-            app.logger.warning("Login: no identify response captured after Spectrum nav")
-            return
+        while _t.time() < deadline:
+            # Did we get a valid member in any identify response yet?
+            for raw, parsed in list(identify_captures):
+                found = _extract_member_nickname(parsed)
+                if found:
+                    nickname = found
+                    db.set_setting("last_identify_raw", raw[:3000])
+                    break
+            if nickname:
+                break
 
-        last = identify_captures[-1]
-        member = ((last.get("data") or {}).get("member") or {}) if isinstance(last, dict) else {}
-        nickname = member.get("nickname") or member.get("displayname")
+            # Every ~8s, open/refresh a BACKGROUND page on Spectrum to trigger
+            # an identify call. The user's login tab is untouched — critical
+            # because interrupting the 2FA flow would kill the session.
+            now = _t.time()
+            if now - last_probe >= probe_interval:
+                try:
+                    if probe_page is None or probe_page.is_closed():
+                        probe_page = ctx.new_page()
+                        probe_page.on("response", on_response)
+                    probe_page.goto(
+                        browser.SPECTRUM_URL,
+                        wait_until="domcontentloaded",
+                        timeout=15000,
+                    )
+                except Exception as e:
+                    app.logger.debug("Login: probe navigation failed: %s", e)
+                last_probe = now
+
+            # If the login page gets closed by the user, we're still OK as long
+            # as the probe page is alive. Break only when the context itself is gone.
+            try:
+                login_page.wait_for_timeout(1000)
+            except Exception:
+                # login_page closed — keep going via probe_page
+                try:
+                    probe_page.wait_for_timeout(1000)
+                except Exception:
+                    break
+
+        # Record cookies at the end either way.
+        try:
+            cookies = ctx.cookies("https://robertsspaceindustries.com")
+            db.set_setting("cookie_count", str(len(cookies)))
+            db.set_setting("cookie_names", ", ".join(c["name"] for c in cookies[:20]))
+            app.logger.info("Login: %d RSI cookies at end", len(cookies))
+        except Exception as e:
+            app.logger.warning("Login: cookie read failed: %s", e)
+
         if nickname:
             db.set_setting("rsi_nickname", nickname)
             db.set_setting("login_status", f"ok @ {db.now_iso()}")
-            app.logger.info("Login: signed in as %s", nickname)
+            app.logger.info("Login: authenticated as %s", nickname)
         else:
-            db.set_setting("login_status", "identify_no_member")
-            db.set_setting("last_identify_keys", str(list(last.keys()) if isinstance(last, dict) else type(last).__name__))
-            app.logger.warning("Login: identify returned no member. Top keys: %s", list(last.keys()) if isinstance(last, dict) else type(last).__name__)
+            # Save the last identify we saw, even if it had no member — useful for debugging.
+            if identify_captures:
+                raw, _ = identify_captures[-1]
+                db.set_setting("last_identify_raw", raw[:3000])
+                db.set_setting("login_status", "timed out waiting for auth")
+                app.logger.warning("Login: timed out with %d identify responses, none authenticated", len(identify_captures))
+            else:
+                db.set_setting("login_status", "timed out — no identify response")
+                app.logger.warning("Login: timed out without any identify response")
 
-        # Grace period for cookie persistence before context closes
-        page.wait_for_timeout(2000)
+        # Small grace period before context close so Chromium flushes cookies to disk
+        try:
+            (probe_page or login_page).wait_for_timeout(2000)
+        except Exception:
+            pass
 
     def _work():
         try:
