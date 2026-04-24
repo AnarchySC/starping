@@ -15,6 +15,7 @@ venv/
 build/
 dist/
 chromium_stage/
+bundled_browsers/
 *.spec.bak
 
 # IDE / OS

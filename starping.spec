@@ -12,6 +12,15 @@ block_cipher = None
 pw_bin, pw_data, pw_hidden = collect_all('playwright')
 keyring_hidden = collect_submodules('keyring.backends')
 
+import os as _os
+
+# Bundle Chromium directly if it was installed to ./bundled_browsers/ by the
+# CI step (PLAYWRIGHT_BROWSERS_PATH=./bundled_browsers python -m playwright install chromium).
+# At runtime, launcher.py sets PLAYWRIGHT_BROWSERS_PATH to <_MEIPASS>/ms-playwright.
+_chromium_bundle = []
+if _os.path.isdir('bundled_browsers'):
+    _chromium_bundle = [('bundled_browsers', 'ms-playwright')]
+
 a = Analysis(
     ['launcher.py'],
     pathex=[],
@@ -20,6 +29,7 @@ a = Analysis(
         ('templates', 'templates'),
         ('static', 'static'),
         *pw_data,
+        *_chromium_bundle,
     ],
     hiddenimports=[
         'app',

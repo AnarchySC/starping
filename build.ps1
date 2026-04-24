@@ -22,17 +22,12 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 pip install pyinstaller
 
-# --- Chromium ---
-Write-Host "`n=== Installing Chromium for Playwright ===" -ForegroundColor Cyan
+# --- Chromium (bundled into PyInstaller payload via bundled_browsers/) ---
+Write-Host "`n=== Installing Chromium into bundled_browsers/ ===" -ForegroundColor Cyan
+if (Test-Path bundled_browsers) { Remove-Item -Recurse -Force bundled_browsers }
+$env:PLAYWRIGHT_BROWSERS_PATH = "$ProjectRoot\bundled_browsers"
 python -m playwright install chromium
-
-# --- Stage Chromium for the installer ---
-Write-Host "`n=== Staging Chromium ===" -ForegroundColor Cyan
-if (Test-Path chromium_stage) { Remove-Item -Recurse -Force chromium_stage }
-$src = "$env:LOCALAPPDATA\ms-playwright"
-if (-not (Test-Path $src)) { throw "Chromium not found at $src" }
-New-Item -ItemType Directory -Force -Path chromium_stage | Out-Null
-Copy-Item -Recurse -Force "$src\*" chromium_stage\
+Remove-Item Env:PLAYWRIGHT_BROWSERS_PATH
 
 # --- PyInstaller ---
 Write-Host "`n=== PyInstaller ===" -ForegroundColor Cyan

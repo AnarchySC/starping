@@ -16,6 +16,23 @@ import sys
 import threading
 import time
 import webbrowser
+from pathlib import Path
+
+
+def _configure_playwright_path() -> None:
+    """In the frozen build, point Playwright at the Chromium we bundled via
+    PyInstaller `datas`. Must run before `playwright` is imported anywhere."""
+    if not getattr(sys, "frozen", False):
+        return
+    meipass = Path(getattr(sys, "_MEIPASS", ""))
+    if not meipass:
+        return
+    bundled = meipass / "ms-playwright"
+    if bundled.exists():
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(bundled)
+
+
+_configure_playwright_path()
 
 
 def _port() -> int:

@@ -37,12 +37,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Files]
-; PyInstaller output — entire StarPing/ directory
+; PyInstaller output — entire StarPing/ directory. Chromium is bundled inside
+; the PyInstaller payload (see starping.spec + launcher.py), so no separate
+; ms-playwright install is required here.
 Source: "dist\StarPing\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-; Chromium bundle — staged by the GH Actions build step into chromium_stage/
-; This unpacks to %LOCALAPPDATA%\ms-playwright\ so Playwright finds it on first run.
-Source: "chromium_stage\*"; DestDir: "{localappdata}\ms-playwright"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
