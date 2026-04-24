@@ -41,3 +41,25 @@ First time: click "Open browser & log in" on the dashboard, log into RSI in the 
 ## Known tuning points
 
 Spectrum's DOM may change. Selectors live in `recruiter/scraper.py` and `recruiter/sender.py` under a `SELECTORS` dict at the top — update there if Spectrum ships a redesign.
+
+## Building the Windows installer
+
+Two paths:
+
+**Local (Windows VM, fast iteration)**
+```powershell
+# One-time: install Python 3.12+ and Inno Setup 6
+choco install python innosetup
+
+# On every build:
+.\build.ps1 -Version 0.1.0
+# Output: dist\StarPing-Setup.exe
+```
+
+**CI (release-quality)**
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+The `.github/workflows/build.yml` workflow runs on `windows-latest`, produces `StarPing-Setup.exe`, and attaches it to a draft GitHub release.
+
