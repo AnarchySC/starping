@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <!-- Background ambient glow -->
+    <radialGradient id="amb" cx="15%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#E85D04" stop-opacity="0.22"/>
+      <stop offset="50%" stop-color="#E85D04" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#E85D04" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="amb2" cx="85%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00d4ff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#00d4ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle scanline pattern -->
+    <pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="2" fill="rgba(0,0,0,0.25)"/>
+    </pattern>
+
+    <!-- Orange neon text glow -->
+    <filter id="neon-o" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="b1"/>
+      <feGaussianBlur stdDeviation="10" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="neon-w" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b1"/>
+      <feGaussianBlur stdDeviation="8" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Pulse ring glow -->
+    <filter id="ring-glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <!-- Deep space -->
+  <rect width="1280" height="320" fill="#05080e"/>
+  <rect width="1280" height="320" fill="url(#amb)"/>
+  <rect width="1280" height="320" fill="url(#amb2)"/>
+
+  <!-- Pulse-ring logo mark (left) -->
+  <g transform="translate(180 160)">
+    <circle r="90" fill="none" stroke="#E85D04" stroke-width="1.5" opacity="0.22" filter="url(#ring-glow)"/>
+    <circle r="64" fill="none" stroke="#E85D04" stroke-width="2" opacity="0.45" filter="url(#ring-glow)"/>
+    <circle r="38" fill="none" stroke="#E85D04" stroke-width="2.5" opacity="0.85" filter="url(#ring-glow)"/>
+    <circle r="8" fill="#00d4ff" filter="url(#ring-glow)"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(320 175)">
+    <text x="0" y="0"
+          font-family="'Arial Black', 'Impact', sans-serif"
+          font-size="108"
+          font-weight="900"
+          letter-spacing="6"
+          fill="#c8ccd4"
+          filter="url(#neon-w)">STAR<tspan fill="#E85D04" filter="url(#neon-o)">PING</tspan></text>
+  </g>
+
+  <!-- Taglines -->
+  <text x="326" y="220"
+        font-family="Consolas, 'JetBrains Mono', monospace"
+        font-size="16"
+        font-weight="500"
+        letter-spacing="7"
+        fill="#00d4ff">/ / &#160; B Y &#160; A N A R C H Y G A M E S . O R G</text>
+
+  <text x="326" y="250"
+        font-family="Consolas, 'JetBrains Mono', monospace"
+        font-size="13"
+        letter-spacing="4"
+        fill="#6a7080">STAR CITIZEN SPECTRUM RECRUITER-DM TOOL</text>
+
+  <!-- Tri-color divider (cyan / orange / gold) -->
+  <g transform="translate(326 270)">
+    <rect x="0" y="0" width="480" height="2" fill="#00d4ff" opacity="0.9"/>
+    <rect x="0" y="4" width="480" height="2" fill="#E85D04" opacity="0.9"/>
+    <rect x="0" y="8" width="480" height="2" fill="#FFD000" opacity="0.9"/>
+  </g>
+
+  <!-- Overlay scanlines (very subtle) -->
+  <rect width="1280" height="320" fill="url(#scan)" opacity="0.18"/>
+</svg>

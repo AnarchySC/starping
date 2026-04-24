@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 96" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="fill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0a1a0a"/>
+      <stop offset="100%" stop-color="#05080e"/>
+    </linearGradient>
+    <filter id="lime-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="text-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="b1"/>
+      <feGaussianBlur stdDeviation="6" result="b2"/>
+      <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="3" y="3" width="394" height="90" fill="url(#fill)"/>
+
+  <!-- Outer + inner lime border -->
+  <rect x="3" y="3" width="394" height="90" fill="none" stroke="#84ff00" stroke-width="2.5" filter="url(#lime-glow)"/>
+  <rect x="9" y="9" width="382" height="78" fill="none" stroke="#84ff00" stroke-width="0.75" opacity="0.35"/>
+
+  <!-- Corner ticks -->
+  <g fill="none" stroke="#84ff00" stroke-width="2" opacity="0.9">
+    <path d="M3,20 L3,3 L20,3"/>
+    <path d="M397,20 L397,3 L380,3"/>
+    <path d="M3,76 L3,93 L20,93"/>
+    <path d="M397,76 L397,93 L380,93"/>
+  </g>
+
+  <!-- Download arrow icon -->
+  <g transform="translate(54 48)" fill="#84ff00" filter="url(#text-glow)">
+    <path d="M-14,-18 L-14,2 L-22,2 L0,22 L22,2 L14,2 L14,-18 Z"/>
+  </g>
+
+  <!-- Label -->
+  <text x="222" y="57"
+        text-anchor="middle"
+        font-family="'Arial Black', 'Impact', sans-serif"
+        font-size="26"
+        font-weight="900"
+        letter-spacing="5"
+        fill="#84ff00"
+        filter="url(#text-glow)">DOWNLOAD NOW</text>
+
+  <!-- Tiny mono subtag -->
+  <text x="222" y="80"
+        text-anchor="middle"
+        font-family="Consolas, monospace"
+        font-size="9"
+        letter-spacing="4"
+        fill="#84ff00"
+        opacity="0.55">WINDOWS INSTALLER / LATEST</text>
+</svg>

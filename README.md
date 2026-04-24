@@ -1,65 +1,101 @@
-# StarPing — by AnarchyGames.org
+<div align="center">
 
-Local tool for org recruiters. Scrapes the Online Users panel of a Spectrum lobby, lets you filter by group (STAFF / CIVILIAN / BACKER) and online/away status, queues targets, and sends a templated DM when you push the Send button for a recruit.
+<img src="docs/banner.svg" alt="StarPing — by AnarchyGames.org" width="100%">
 
-## Design notes
+<br><br>
 
-- **Manual push only.** No auto-cadence, no batching. Every DM is a button click, one at a time.
-- **STAFF is off by default** on the queue filter (DMing CIG staff is a fast way to get banned).
-- **Persistent Playwright browser** — first launch opens a visible Chromium, you log in once, session persists in `data/browser/`.
-- **Optional credential storage** via the OS keyring (never plaintext) for auto-relogin if the session expires.
-- **No CAPTCHA bypass, no proxy rotation, no fingerprint spoofing.** If Spectrum challenges, the visible browser surfaces it and you solve it yourself.
+<a href="https://github.com/AnarchySC/starping/releases/latest">
+  <img src="docs/download-now.svg" alt="Download Now — Windows Installer" width="340">
+</a>
 
-## Setup
+<br>
+
+[![Build Windows Installer](https://github.com/AnarchySC/starping/actions/workflows/build.yml/badge.svg)](https://github.com/AnarchySC/starping/actions/workflows/build.yml)
+![Platform](https://img.shields.io/badge/platform-Windows-00d4ff?style=flat-square)
+![License](https://img.shields.io/badge/license-All%20rights%20reserved-6a7080?style=flat-square)
+![Brand](https://img.shields.io/badge/by-AnarchyGames.org-E85D04?style=flat-square)
+
+</div>
+
+---
+
+## What it is
+
+**StarPing** is a local productivity tool for Star Citizen organization recruiters. It scrapes the Online Users panel of any Spectrum chat lobby, filters by group tier (STAFF / BACKER / CIVILIAN) and presence, and lets you send templated DMs one click at a time from a neon-dark web UI running on your own machine.
+
+Built for humans, not bots. Manual push per message, human cadence, no CAPTCHA bypass, no proxy rotation, no fingerprint spoofing.
+
+## Highlights
+
+- **Live Spectrum scrape** via the Presences API — hundreds of users in one click
+- **Group + status filters** — target only online BACKER/CIVILIAN, skip "In Menus"
+- **Multi-template system** — save as many recruiting messages as you want, per-row dropdown picks which one to send
+- **Bulk actions** — multi-select rows, assign a template to all of them at once
+- **Lobby discovery** — one click finds every Spectrum chat lobby your account has access to
+- **Persistent session** — log in to RSI once, the embedded Chromium remembers you
+
+## Design philosophy
+
+Automation should amplify the recruiter, not replace them. Every DM is a single button click. The tool buys speed, not scale — you still read every profile, still hit send every time. That distinction is what keeps accounts alive and communities un-spammed.
+
+## Install
+
+Grab the latest Windows installer from **[Releases](https://github.com/AnarchySC/starping/releases/latest)**. Double-click `StarPing-Setup.exe`, then launch StarPing from the Start Menu.
+
+First run: click **Open browser & log in** on the Dashboard, sign in to RSI inside the embedded Chromium, close the window. You're ready.
+
+## Run from source
 
 ```bash
-cd ~/Documents/Projects/sc-recruiter
-python -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/AnarchySC/starping.git
+cd starping
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
+python app.py   # → http://localhost:5050
 ```
 
-## Run
+## Build the Windows installer
 
-```bash
-./run.sh
-# then open http://localhost:5050
-# (override with SC_RECRUITER_PORT=xxxx if 5050 is taken)
-```
-
-First time: click "Open browser & log in" on the dashboard, log into RSI in the Chromium window that opens, close it. Session is now saved.
-
-## Workflow
-
-1. **Dashboard** → add a lobby URL (right-click a Spectrum lobby in your browser, copy link).
-2. **Scrape** → pick lobby, click "Scrape online users". Playwright opens lobby, reads the online users panel, writes results to the queue.
-3. **Queue** → filter by group / status, uncheck anyone you don't want, the unchecked stay but won't be sent to.
-4. **Compose** → write the message template. Variables: `{{username}}`, `{{group}}`, `{{lobby}}`.
-5. **Send** → per row, click "Send". Playwright opens the DM, fills it, sends, records result.
-
-## Known tuning points
-
-Spectrum's DOM may change. Selectors live in `recruiter/scraper.py` and `recruiter/sender.py` under a `SELECTORS` dict at the top — update there if Spectrum ships a redesign.
-
-## Building the Windows installer
-
-Two paths:
-
-**Local (Windows VM, fast iteration)**
+**Locally on a Windows machine:**
 ```powershell
-# One-time: install Python 3.12+ and Inno Setup 6
 choco install python innosetup
-
-# On every build:
 .\build.ps1 -Version 0.1.0
 # Output: dist\StarPing-Setup.exe
 ```
 
-**CI (release-quality)**
+**Via GitHub Actions:**
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
+# workflow attaches the installer to a draft release
 ```
-The `.github/workflows/build.yml` workflow runs on `windows-latest`, produces `StarPing-Setup.exe`, and attaches it to a draft GitHub release.
 
+## Workflow
+
+1. **Dashboard** → click `Discover lobbies from Spectrum`. Every lobby you have access to gets added.
+2. **Dashboard** → click `Scrape` on a lobby. Users are imported with group tier + presence status.
+3. **Message** → save one or more templates. `{{username}}` / `{{group}}` / `{{lobby}}` variables available.
+4. **Queue** → filter, multi-select, assign a template to the selected rows, then `Send` per row.
+
+## Scope lines held
+
+| | |
+|---|---|
+| CAPTCHA bypass | **No** — you solve them manually in the browser window |
+| Proxy rotation | **No** |
+| Fingerprint spoofing | **No** |
+| Auto-cadence / scheduling | **No** — every send is a button click |
+| STAFF DMing | **Off by default** in filters (`isGM: true` users are excluded) |
+
+## License
+
+All rights reserved. StarPing is published as source-viewable by AnarchyGames.org; see [LICENSE](LICENSE) when present.
+
+---
+
+<div align="center">
+
+**StarPing · by [AnarchyGames.org](https://anarchygames.org)**
+
+</div>
