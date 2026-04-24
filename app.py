@@ -66,7 +66,11 @@ def dashboard():
         "sent": sum(1 for r in recruits if r["sent_at"]),
         "pending": sum(1 for r in recruits if not r["sent_at"]),
     }
-    # Deduped suggestion list: previously-used names first, then seed defaults.
+    session_info = {
+        "nickname": db.get_setting("rsi_nickname"),
+        "status": db.get_setting("login_status", "never signed in"),
+        "last_error": db.get_setting("last_error"),
+    }
     used = {l["name"] for l in lobbies}
     name_suggestions = sorted(used) + [n for n in SEED_LOBBY_NAMES if n not in used]
     return render_template(
@@ -75,21 +79,76 @@ def dashboard():
         template=template,
         stats=stats,
         name_suggestions=name_suggestions,
+        session_info=session_info,
     )
+
+
+IDENTIFY_PATH = "/api/spectrum/auth/identify"
 
 
 @app.route("/login", methods=["POST"])
 def login():
     def _open(ctx):
+        identify_captures = []
+
         page = ctx.new_page()
+
+        def on_response(resp):
+            if IDENTIFY_PATH not in resp.url:
+                return
+            try:
+                identify_captures.append(resp.json())
+            except Exception:
+                identify_captures.append({"_error": "non-json identify response"})
+
+        page.on("response", on_response)
+
         page.goto(browser.RSI_LOGIN_URL, wait_until="domcontentloaded")
+        app.logger.info("Login: browser opened, waiting for user to sign in")
+
+        # Wait for the user to complete RSI login (URL leaves /connect and /login).
         try:
             page.wait_for_url(
                 lambda url: "connect" not in url and "login" not in url.lower(),
                 timeout=600_000,
             )
-        except Exception:
-            pass
+            app.logger.info("Login: URL changed, explicitly navigating to Spectrum to init session")
+        except Exception as e:
+            app.logger.warning("Login: wait_for_url ended: %s", e)
+            db.set_setting("last_error", f"login wait: {type(e).__name__}: {e}")
+            return
+
+        # Explicitly visit Spectrum so an identify call fires with the new session.
+        try:
+            page.goto(browser.SPECTRUM_URL, wait_until="domcontentloaded", timeout=30000)
+        except Exception as e:
+            app.logger.warning("Login: spectrum navigation failed: %s", e)
+
+        # Give identify up to 15s to fire
+        import time as _t
+        deadline = _t.time() + 15
+        while _t.time() < deadline and not identify_captures:
+            page.wait_for_timeout(500)
+
+        if not identify_captures:
+            db.set_setting("login_status", "no_identify_response")
+            app.logger.warning("Login: no identify response captured after Spectrum nav")
+            return
+
+        last = identify_captures[-1]
+        member = ((last.get("data") or {}).get("member") or {}) if isinstance(last, dict) else {}
+        nickname = member.get("nickname") or member.get("displayname")
+        if nickname:
+            db.set_setting("rsi_nickname", nickname)
+            db.set_setting("login_status", f"ok @ {db.now_iso()}")
+            app.logger.info("Login: signed in as %s", nickname)
+        else:
+            db.set_setting("login_status", "identify_no_member")
+            db.set_setting("last_identify_keys", str(list(last.keys()) if isinstance(last, dict) else type(last).__name__))
+            app.logger.warning("Login: identify returned no member. Top keys: %s", list(last.keys()) if isinstance(last, dict) else type(last).__name__)
+
+        # Grace period for cookie persistence before context closes
+        page.wait_for_timeout(2000)
 
     def _work():
         try:
@@ -99,8 +158,55 @@ def login():
             db.set_setting("last_error", f"login: {type(e).__name__}: {e}")
 
     threading.Thread(target=_work, daemon=True).start()
-    flash("Browser opening — log in to RSI, then close the window.", "info")
+    flash("Browser opening — log in to RSI. The window will close itself once we confirm the session.", "info")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/session")
+def session_probe():
+    """Live probe — launches a headless context, calls identify, reports result."""
+    import time as _t
+    from playwright.sync_api import sync_playwright
+    lines = []
+    lines.append(f"Profile dir: {paths.browser_profile_dir()}")
+    lines.append(f"Stored nickname: {db.get_setting('rsi_nickname', '(none)')}")
+    lines.append(f"Login status: {db.get_setting('login_status', '(never)')}")
+    lines.append("")
+    try:
+        with sync_playwright() as p:
+            ctx = p.chromium.launch_persistent_context(
+                user_data_dir=str(paths.browser_profile_dir()),
+                headless=True,
+                timeout=20000,
+            )
+            cookies = ctx.cookies("https://robertsspaceindustries.com")
+            lines.append(f"RSI cookies in profile: {len(cookies)}")
+            for c in cookies[:8]:
+                lines.append(f"  {c['name']} (domain={c['domain']})")
+            page = ctx.new_page()
+            captured = []
+            page.on("response", lambda r: captured.append(r.json()) if IDENTIFY_PATH in r.url else None)
+            page.goto(browser.SPECTRUM_URL, wait_until="domcontentloaded", timeout=30000)
+            deadline = _t.time() + 10
+            while _t.time() < deadline and not captured:
+                page.wait_for_timeout(500)
+            if captured:
+                last = captured[-1]
+                if isinstance(last, dict):
+                    member = (last.get("data") or {}).get("member") or {}
+                    if member.get("id") or member.get("nickname"):
+                        lines.append(f"identify: signed in as {member.get('nickname')}")
+                    else:
+                        lines.append(f"identify: NO member. data keys = {list((last.get('data') or {}).keys())}")
+                else:
+                    lines.append(f"identify: unexpected type {type(last).__name__}")
+            else:
+                lines.append("identify: no response captured within 10s")
+            ctx.close()
+    except Exception as e:
+        app.logger.exception("session probe failed")
+        lines.append(f"ERROR: {type(e).__name__}: {e}")
+    return "<pre>" + "\n".join(lines) + "</pre>"
 
 
 @app.route("/diagnose")

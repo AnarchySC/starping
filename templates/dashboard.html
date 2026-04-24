@@ -5,10 +5,21 @@
 
 <section class="panel">
     <h2>Session</h2>
-    <p>First time? Click below, log into RSI in the Chromium window, then close it. Session persists.</p>
-    <form method="post" action="{{ url_for('login') }}">
+    <p>
+        {% if session_info.nickname %}
+            <b style="color: var(--ok)">Signed in as {{ session_info.nickname }}</b> — {{ session_info.status }}
+        {% else %}
+            <b style="color: var(--warn)">Not signed in</b> — {{ session_info.status }}
+        {% endif %}
+    </p>
+    {% if session_info.last_error %}
+        <p class="muted">Last error: <code>{{ session_info.last_error }}</code></p>
+    {% endif %}
+    <form method="post" action="{{ url_for('login') }}" style="display:inline">
         <button type="submit">Open browser &amp; log in</button>
     </form>
+    <a href="{{ url_for('session_probe') }}" target="_blank" class="muted" style="margin-left: 1rem;">Probe session</a>
+    <a href="{{ url_for('diagnose') }}" target="_blank" class="muted" style="margin-left: 1rem;">Diagnose Playwright</a>
 </section>
 
 <section class="panel">
