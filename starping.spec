@@ -2,21 +2,24 @@
 # Build: pyinstaller starping.spec
 # Produces: dist/StarPing/ (folder with StarPing.exe + deps)
 
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
 
-playwright_datas = collect_data_files('playwright', include_py_files=False)
+# collect_all pulls the Node.js driver binaries + package files that
+# collect_data_files alone misses. This is the root-cause fix for
+# "clicking login does nothing" on the frozen build.
+pw_bin, pw_data, pw_hidden = collect_all('playwright')
 keyring_hidden = collect_submodules('keyring.backends')
 
 a = Analysis(
     ['launcher.py'],
     pathex=[],
-    binaries=[],
+    binaries=[*pw_bin],
     datas=[
         ('templates', 'templates'),
         ('static', 'static'),
-        *playwright_datas,
+        *pw_data,
     ],
     hiddenimports=[
         'app',
@@ -28,6 +31,7 @@ a = Analysis(
         'recruiter.scraper',
         'recruiter.sender',
         'recruiter.discover',
+        *pw_hidden,
         *keyring_hidden,
     ],
     hookspath=[],

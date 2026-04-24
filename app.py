@@ -83,7 +83,6 @@ def login():
     def _open(ctx):
         page = ctx.new_page()
         page.goto(browser.RSI_LOGIN_URL, wait_until="domcontentloaded")
-        # Let the user interact. Wait until they navigate away from the login page.
         try:
             page.wait_for_url(
                 lambda url: "connect" not in url and "login" not in url.lower(),
@@ -91,9 +90,50 @@ def login():
             )
         except Exception:
             pass
-    threading.Thread(target=lambda: _run_with_browser(_open), daemon=True).start()
+
+    def _work():
+        try:
+            _run_with_browser(_open)
+        except Exception as e:
+            app.logger.exception("Login browser launch failed: %s", e)
+            db.set_setting("last_error", f"login: {type(e).__name__}: {e}")
+
+    threading.Thread(target=_work, daemon=True).start()
     flash("Browser opening — log in to RSI, then close the window.", "info")
     return redirect(url_for("dashboard"))
+
+
+@app.route("/diagnose")
+def diagnose():
+    """Synchronously probe Playwright / Chromium and return a plain-text report.
+    Useful for debugging frozen-build issues where the background thread fails silently.
+    """
+    import platform
+    lines = []
+    lines.append(f"Platform: {platform.platform()}")
+    lines.append(f"Data dir: {paths.data_dir()}")
+    lines.append(f"Browser profile: {paths.browser_profile_dir()}")
+    lines.append(f"Last error (from settings): {db.get_setting('last_error', '(none)')}")
+    lines.append("")
+    lines.append("--- Playwright test ---")
+    try:
+        from playwright.sync_api import sync_playwright
+        lines.append("playwright module: imported OK")
+        with sync_playwright() as p:
+            lines.append(f"sync_playwright ready; chromium path: {p.chromium.executable_path}")
+            bc = p.chromium.launch_persistent_context(
+                user_data_dir=str(paths.browser_profile_dir()),
+                headless=True,
+                timeout=20000,
+            )
+            lines.append("launched persistent context OK (headless)")
+            bc.close()
+            lines.append("closed context OK")
+        lines.append("RESULT: OK")
+    except Exception as e:
+        app.logger.exception("diagnose failed")
+        lines.append(f"RESULT: FAILED — {type(e).__name__}: {e}")
+    return "<pre>" + "\n".join(lines) + "</pre>"
 
 
 @app.route("/lobbies", methods=["POST"])
@@ -123,6 +163,7 @@ def discover_lobbies_route():
         return redirect(url_for("dashboard"))
     except Exception as e:
         app.logger.exception("discovery failed")
+        db.set_setting("last_error", f"discover: {type(e).__name__}: {e}")
         flash(f"Discovery failed: {e}", "error")
         return redirect(url_for("dashboard"))
     if not lobbies:
