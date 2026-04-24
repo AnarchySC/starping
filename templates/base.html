@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}StarPing — AnarchyGames{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <a class="brand" href="{{ url_for('dashboard') }}">
+        <span class="product">Star<span class="logo-mark">Ping</span></span>
+        <span class="sep">//</span>
+        <span class="subtitle">by AnarchyGames.org</span>
+    </a>
+    <nav>
+        <a href="{{ url_for('dashboard') }}" {% if request.endpoint == 'dashboard' %}class="active"{% endif %}>Dashboard</a>
+        <a href="{{ url_for('queue') }}" {% if request.endpoint == 'queue' %}class="active"{% endif %}>Queue</a>
+        <a href="{{ url_for('compose') }}" {% if request.endpoint == 'compose' %}class="active"{% endif %}>Message</a>
+    </nav>
+</header>
+<main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+            <div class="flash flash-{{ category }}">{{ msg }}</div>
+        {% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+    StarPing · an <a href="https://anarchygames.org" target="_blank">AnarchyGames.org</a> tool · Local-only
+</footer>
+</body>
+</html>

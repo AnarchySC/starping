@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Message — StarPing{% endblock %}
+{% block content %}
+<h1>Message templates</h1>
+
+<p>Variables: <code>{{ '{{username}}' }}</code>, <code>{{ '{{group}}' }}</code>, <code>{{ '{{lobby}}' }}</code></p>
+<p class="muted">The <b>★ default</b> template is pre-selected in the Queue's per-row dropdown. The recruiter can override per row.</p>
+
+<form method="post" action="{{ url_for('compose') }}" class="panel">
+    <h2>Save a template</h2>
+    <label>
+        Name
+        <input name="name" value="" placeholder="e.g. Recruiting, Friendly, Targeted" required>
+    </label>
+    <label>
+        Body
+        <textarea name="body" rows="10" required placeholder="Hey {{ '{{username}}' }}, ..."></textarea>
+    </label>
+    <button type="submit">Save &amp; set as default</button>
+</form>
+
+<section class="panel">
+    <h2>Saved templates</h2>
+    {% if templates %}
+        <ul class="template-list">
+            {% for t in templates %}
+                <li class="{% if t.is_active %}active{% endif %}">
+                    <div class="template-head">
+                        <b>{{ t.name }}</b>
+                        {% if t.is_active %}<span class="pill">★ default</span>{% endif %}
+                        <small>{{ t.updated_at }}</small>
+                        <span class="spacer"></span>
+                        {% if not t.is_active %}
+                            <form method="post" action="{{ url_for('activate_template_route', template_id=t.id) }}" style="display:inline">
+                                <button type="submit">Set as default</button>
+                            </form>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('delete_template_route', template_id=t.id) }}"
+                              onsubmit="return confirm('Delete template {{ t.name|e }}?');" style="display:inline">
+                            <button class="danger" type="submit">Delete</button>
+                        </form>
+                    </div>
+                    <details><summary>View body</summary><pre>{{ t.body }}</pre></details>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p><i>No templates yet. Save one above.</i></p>
+    {% endif %}
+</section>
+{% endblock %}

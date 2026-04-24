@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Queue — StarPing{% endblock %}
+{% block content %}
+<h1>Recruit queue</h1>
+
+<form method="get" action="{{ url_for('queue') }}" class="filter-bar">
+    <input type="hidden" name="submitted" value="1">
+    <fieldset>
+        <legend>Group</legend>
+        <label><input type="checkbox" name="group" value="STAFF" {% if 'STAFF' in groups %}checked{% endif %}> STAFF</label>
+        <label><input type="checkbox" name="group" value="BACKER" {% if 'BACKER' in groups %}checked{% endif %}> BACKER</label>
+        <label><input type="checkbox" name="group" value="CIVILIAN" {% if 'CIVILIAN' in groups %}checked{% endif %}> CIVILIAN</label>
+    </fieldset>
+    <fieldset>
+        <legend>Filters</legend>
+        <label><input type="checkbox" name="online" value="1" {% if only_online %}checked{% endif %}> Online only</label>
+        <label><input type="checkbox" name="exclude_menus" value="1" {% if exclude_menus %}checked{% endif %}> Exclude "In Menus"</label>
+        <label><input type="checkbox" name="unsent" value="1" {% if only_unsent %}checked{% endif %}> Unsent only</label>
+    </fieldset>
+    <input type="text" name="q" value="{{ search }}" placeholder="Search username">
+    <button type="submit">Apply</button>
+</form>
+
+{% if not templates %}
+    <div class="flash flash-error">
+        No message templates yet. <a href="{{ url_for('compose') }}">Write one first</a>.
+    </div>
+{% endif %}
+
+<div class="bulk-bar">
+    <span id="selected-count">0</span> selected
+    {% if templates %}
+        <label class="bulk-assign">
+            Assign template:
+            <select id="bulk-template">
+                {% for t in templates %}
+                    <option value="{{ t.id }}" {% if t.id == active_template_id %}selected{% endif %}>
+                        {{ t.name }}{% if t.is_active %} ★{% endif %}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="button" id="bulk-apply">Apply to selected</button>
+    {% endif %}
+    <button type="button" class="danger" id="bulk-remove">Remove selected</button>
+</div>
+
+<table class="queue-table">
+    <thead>
+        <tr>
+            <th><input type="checkbox" id="select-all"></th>
+            <th>Username</th>
+            <th>Group</th>
+            <th>Status</th>
+            <th>Substatus</th>
+            <th>Lobby</th>
+            <th>Template</th>
+            <th>Sent</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for r in recruits %}
+        <tr id="recruit-{{ r.id }}">
+            <td><input type="checkbox" class="row-select" data-id="{{ r.id }}" {% if r.sent_at %}disabled{% endif %}></td>
+            <td>
+                {% if r.profile_url %}
+                    <a href="{{ r.profile_url }}" target="_blank">{{ r.username }}</a>
+                {% else %}
+                    {{ r.username }}
+                {% endif %}
+            </td>
+            <td>{{ r.group_tier or '—' }}</td>
+            <td class="status status-{{ r.status }}">{{ r.status or '—' }}</td>
+            <td>{{ r.substatus or '' }}</td>
+            <td>{{ r.lobby_name or '' }}</td>
+            <td>
+                {% if templates %}
+                    <select class="template-select" data-id="{{ r.id }}" {% if r.sent_at %}disabled{% endif %}>
+                        {% for t in templates %}
+                            <option value="{{ t.id }}" {% if t.id == active_template_id %}selected{% endif %}>
+                                {{ t.name }}{% if t.is_active %} ★{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                {% else %}
+                    <i>no template</i>
+                {% endif %}
+            </td>
+            <td class="send-result">
+                {% if r.sent_at %}
+                    <b>{{ r.send_result }}</b>
+                    {% if r.send_error %}<br><small>{{ r.send_error }}</small>{% endif %}
+                {% endif %}
+            </td>
+            <td>
+                {% if not r.sent_at and templates %}
+                    <button class="send-btn" data-id="{{ r.id }}">Send</button>
+                {% endif %}
+                <button class="danger remove-btn" data-id="{{ r.id }}">Remove</button>
+            </td>
+        </tr>
+    {% else %}
+        <tr><td colspan="9"><i>No recruits match the current filters.</i></td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<script>
+const rowChecks = () => document.querySelectorAll('.row-select:not(:disabled)');
+const checkedRows = () => Array.from(document.querySelectorAll('.row-select:checked'));
+const countEl = document.getElementById('selected-count');
+const selectAll = document.getElementById('select-all');
+
+function updateCount() {
+    countEl.textContent = checkedRows().length;
+    // Sync header checkbox state
+    const total = rowChecks().length;
+    const sel = checkedRows().length;
+    selectAll.indeterminate = sel > 0 && sel < total;
+    selectAll.checked = sel > 0 && sel === total;
+}
+
+selectAll.addEventListener('change', () => {
+    rowChecks().forEach(cb => { cb.checked = selectAll.checked; });
+    updateCount();
+});
+document.querySelectorAll('.row-select').forEach(cb => {
+    cb.addEventListener('change', updateCount);
+});
+
+document.getElementById('bulk-apply')?.addEventListener('click', () => {
+    const tid = document.getElementById('bulk-template').value;
+    const rows = checkedRows();
+    if (!rows.length) { alert('Select at least one recruit.'); return; }
+    rows.forEach(cb => {
+        const sel = document.querySelector(`.template-select[data-id="${cb.dataset.id}"]`);
+        if (sel) sel.value = tid;
+    });
+});
+
+document.getElementById('bulk-remove').addEventListener('click', async () => {
+    const rows = checkedRows();
+    if (!rows.length) { alert('Select at least one recruit.'); return; }
+    if (!confirm(`Remove ${rows.length} recruit(s) from the queue?`)) return;
+    for (const cb of rows) {
+        const id = cb.dataset.id;
+        await fetch(`/recruits/${id}/delete`, {method: 'POST'});
+        document.getElementById(`recruit-${id}`)?.remove();
+    }
+    updateCount();
+});
+
+document.querySelectorAll('.send-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const row = document.getElementById(`recruit-${id}`);
+        const sel = row.querySelector('.template-select');
+        const templateId = sel ? sel.value : '';
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+            const body = new URLSearchParams();
+            if (templateId) body.set('template_id', templateId);
+            const res = await fetch(`/send/${id}`, {method: 'POST', body});
+            const data = await res.json();
+            const cell = row.querySelector('.send-result');
+            cell.innerHTML = `<b>${data.result}</b>` + (data.error ? `<br><small>${data.error}</small>` : '');
+            if (data.ok) {
+                btn.remove();
+                if (sel) sel.disabled = true;
+                const cb = row.querySelector('.row-select');
+                if (cb) { cb.checked = false; cb.disabled = true; updateCount(); }
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Retry';
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Send';
+            alert('Send failed: ' + err);
+        }
+    });
+});
+
+document.querySelectorAll('.remove-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        if (!confirm('Remove this recruit from the queue?')) return;
+        await fetch(`/recruits/${id}/delete`, {method: 'POST'});
+        document.getElementById(`recruit-${id}`)?.remove();
+        updateCount();
+    });
+});
+
+updateCount();
+</script>
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — StarPing{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+
+<section class="panel">
+    <h2>Session</h2>
+    <p>First time? Click below, log into RSI in the Chromium window, then close it. Session persists.</p>
+    <form method="post" action="{{ url_for('login') }}">
+        <button type="submit">Open browser &amp; log in</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Stats</h2>
+    <ul>
+        <li>Total recruits scraped: <b>{{ stats.total }}</b></li>
+        <li>Pending (unsent): <b>{{ stats.pending }}</b></li>
+        <li>Sent: <b>{{ stats.sent }}</b></li>
+    </ul>
+</section>
+
+<section class="panel">
+    <h2>Lobbies</h2>
+    <form method="post" action="{{ url_for('discover_lobbies_route') }}" style="display:inline-block; margin-bottom: 0.8rem;">
+        <button type="submit">Discover lobbies from Spectrum</button>
+        <small class="muted">Opens your logged-in browser briefly and imports every chat lobby you have access to.</small>
+    </form>
+    <form method="post" action="{{ url_for('add_lobby') }}" class="inline-form">
+        <input name="name" list="lobby-names" placeholder="Lobby name (pick or type)" required autocomplete="off">
+        <datalist id="lobby-names">
+            {% for n in name_suggestions %}
+                <option value="{{ n }}">
+            {% endfor %}
+        </datalist>
+        <input name="url" placeholder="https://robertsspaceindustries.com/spectrum/community/SC/lobby/..." required size="60">
+        <button type="submit">Add</button>
+    </form>
+    <table>
+        <thead><tr><th>Name</th><th>URL</th><th></th><th></th></tr></thead>
+        <tbody>
+        {% for l in lobbies %}
+            <tr>
+                <td>{{ l.name }}</td>
+                <td><a href="{{ l.url }}" target="_blank">{{ l.url }}</a></td>
+                <td>
+                    <form method="post" action="{{ url_for('scrape', lobby_id=l.id) }}">
+                        <button type="submit">Scrape</button>
+                    </form>
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('delete_lobby', lobby_id=l.id) }}"
+                          onsubmit="return confirm('Delete this lobby?');">
+                        <button type="submit" class="danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4"><i>No lobbies yet. Add one above.</i></td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+
+<section class="panel">
+    <h2>Active message template</h2>
+    {% if template %}
+        <pre>{{ template.body }}</pre>
+        <p><a href="{{ url_for('compose') }}">Edit</a></p>
+    {% else %}
+        <p>No template yet. <a href="{{ url_for('compose') }}">Write one</a>.</p>
+    {% endif %}
+</section>
+{% endblock %}

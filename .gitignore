@@ -1,0 +1,31 @@
+# User data (DB, browser session, logs)
+data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Build artifacts
+build/
+dist/
+*.spec.bak
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temp / dev outputs
+/tmp/
+spectrum_*.json
+spectrum_*.html
